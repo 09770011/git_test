@@ -1,0 +1,177 @@
+
+-----------------------------------------------------------------------
+
+select a.order_date,a.Customer_ID,b.Customer_Name
+		,d.Product_ID,d.Product_Name 
+		,c.Quantity,c.Sales
+from order_m a
+inner join customer b on a.customer_id=b.Customer_ID 
+inner join order_d c on a.order_id=c.Order_ID 
+inner join product d on c.Product_ID=d.Product_ID 
+where a.Order_Date between '2019/07/01' and '2019/07/31'
+order by a.customer_id,a.order_date
+
+
+------------------------Q1------------------------------------------
+
+select c.order_date,c.Customer_ID,d.Customer_Name
+		,a.Product_ID,a.Product_Name 
+		,b.Quantity,b.Sales
+from product a
+inner join order_d b on a.Product_ID=b.Product_ID 
+inner join order_m c on b.order_id=c.Order_ID 
+inner join customer d on c.Customer_ID=d.Customer_ID 
+where (c.Order_Date between '2019/07/01' and '2019/07/31')
+		and a.Product_ID like 'TEC-CO%'
+order by c.customer_id,c.order_date
+
+
+------------------------Q2------------------------------------------
+
+select a.order_date,a.Customer_ID,b.Customer_Name
+		,d.Product_ID,d.Product_Name 
+		,c.Quantity,c.Sales
+from order_m a
+inner join customer b on a.customer_id=b.Customer_ID 
+inner join order_d c on a.order_id=c.Order_ID 
+inner join product d on c.Product_ID=d.Product_ID 
+where a.Order_Date between '2019/07/01' and '2019/07/31'
+union ALL 
+select a.rtn_Date,c.Customer_ID,c.Customer_Name
+		,b.Product_ID,b.Product_Name 
+		,-1 * a.Quantity,-1* a.rtn_amount 
+from order_rtn a
+inner join product b on a.Product_ID=b.Product_ID 
+inner join customer c on a.customer_id=c.Customer_ID 
+where a.rtn_Date between '2019/07/01' and '2019/07/31'
+order by a.customer_id,a.order_date
+
+--------------------------------------------------------------------
+
+select a.order_date,a.Customer_ID,c.Customer_Name
+		,a.Product_ID,b.Product_Name 
+		,a.Quantity,a.Sales
+from
+(
+		select a.order_date,a.Customer_ID,c.Product_ID 
+				,c.Quantity,c.Sales
+		from order_m a
+		inner join order_d c on a.order_id=c.Order_ID 
+		where a.Order_Date between '2019/07/01' and '2019/07/31'
+		union ALL 
+		select a.rtn_Date,a.Customer_ID,a.Product_ID
+				,-1 * a.Quantity,-1* a.rtn_amount 
+		from order_rtn a
+		where a.rtn_Date between '2019/07/01' and '2019/07/31'
+) a
+inner join product b on a.Product_ID=b.Product_ID 
+inner join customer c on a.customer_id=c.Customer_ID 
+order by a.customer_id,a.order_date
+
+
+
+------------------------Q3------------------------------------------
+
+-- 錯誤版
+
+select a.Customer_ID,a.Customer_Name 
+from customer a
+left join order_m b on a.Customer_ID=b.Customer_ID 
+where b.Order_Date between '2019/07/01' and '2019/07/31'
+		and b.Customer_ID is null
+order by a.customer_id
+
+
+-- 正確版
+
+select a.Customer_ID,a.Customer_Name 
+from customer a
+left join order_m b on a.Customer_ID=b.Customer_ID and b.Order_Date between '2019/07/01' and '2019/07/31'
+where b.Customer_ID is null
+order by a.customer_id
+
+-- or
+
+select a.Customer_ID,a.Customer_Name 
+from customer a
+left join (select * from order_m where Order_Date between '2019/07/01' and '2019/07/31') b on a.Customer_ID=b.Customer_ID 
+where b.Customer_ID is null
+order by a.customer_id
+
+
+------------------------Q4------------------------------------------
+
+select a.Product_ID,a.Product_Name
+from product a
+left join 
+(
+		select y.Product_ID
+		from order_m x
+		inner join order_d y on x.order_id=y.order_id
+		where substring(x.Order_Date,1,7)='2019/07'
+		group by y.Product_ID
+) b on a.Product_ID=b.Product_ID 
+where b.Product_ID is null
+order by a.Product_ID
+
+------------------------Q5------------------------------------------
+
+
+select a.yyyymm,a.Customer_ID,c.Customer_Name
+		,sum(a.Sales) sale_amt,sum(a.rtn_amt) rtn_amt
+		,sum(a.Sales-a.rtn_amt) total_amt
+from
+(
+		select substring(a.order_date,1,7) yyyymm,a.Customer_ID,c.Product_ID 
+				,c.Sales, 0 rtn_amt
+		from order_m a
+		inner join order_d c on a.order_id=c.Order_ID 
+		where substring(a.order_date,1,7)='2019/07' 
+		union ALL 
+		select substring(a.rtn_Date,1,7),a.Customer_ID,a.Product_ID
+				,0, a.rtn_amount 
+		from order_rtn a
+		where substring(a.rtn_Date,1,7)='2019/07'
+) a
+inner join customer c on a.customer_id=c.Customer_ID 
+group by a.yyyymm,a.Customer_ID,c.Customer_Name 
+order by a.yyyymm,a.Customer_ID
+
+------------------------Q6------------------------------------------
+
+-- drop table #temp1  
+
+select a.yyyymm,a.Customer_ID,c.Customer_Name
+		,sum(a.Sales) sale_amt,sum(a.rtn_amt) rtn_amt
+		,sum(a.Sales-a.rtn_amt) total_amt
+into #temp1  				
+from
+(
+		select substring(a.order_date,1,7) yyyymm,a.Customer_ID,c.Product_ID 
+				,c.Sales, 0 rtn_amt
+		from order_m a
+		inner join order_d c on a.order_id=c.Order_ID 
+		where substring(a.order_date,1,7)='2019/07' 
+		union ALL 
+		select substring(a.rtn_Date,1,7),a.Customer_ID,a.Product_ID
+				,0, a.rtn_amount 
+		from order_rtn a
+		where substring(a.rtn_Date,1,7)='2019/07'
+) a
+inner join customer c on a.customer_id=c.Customer_ID 
+group by a.yyyymm,a.Customer_ID,c.Customer_Name
+order by a.yyyymm,a.Customer_ID;
+
+select *
+from 
+(
+	select a.yyyymm,a.Customer_ID,a.Customer_Name,a.total_amt
+			,b.sum_total_amt
+			,convert(varchar(8),  convert(decimal(18,2),a.total_amt/b.sum_total_amt*100) )+ '%' ct_percent
+	from #temp1 a
+	left join (select sum(total_amt) sum_total_amt from #temp1) b on 1=1
+) a
+order by ct_percent desc
+
+
+
